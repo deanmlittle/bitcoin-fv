@@ -301,7 +301,9 @@ enum class MemPoolRemovalReason {
     //! Removed for replacement
     REPLACED,
     //! Removed because input was frozen
-    FROZEN_INPUT
+    FROZEN_INPUT,
+    //! Removed because TX was evicted manually by miner
+    EVICTED
 };
 
 struct DisconnectedBlockTransactions;
@@ -855,6 +857,10 @@ public:
         size_t sizelimit,
         const mining::CJournalChangeSetPtr& changeSet,
         std::vector<COutPoint> *pvNoSpendsRemaining = nullptr);
+
+    /** Evict a transaction (and its dependencies) in the mempool by txid.
+     * Return all removed transaction ids. */
+    std::vector<TxId> Evict(const TxId& txId, const mining::CJournalChangeSetPtr& changeSet);
 
     /** Expire all transaction (and their dependencies) in the mempool older
      * than time. Return the number of removed transactions. */

@@ -93,6 +93,7 @@ SOLO_TESTS = {
     "bsv-p2p-dsdetected.py",
     "bsv-safe-mode.py",
     "bsv-safe-mode-reorg-notification.py"
+    "evict-transaction.py"
 }
 
 ENVIRONMENT_TYPE = {

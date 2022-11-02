@@ -354,6 +354,81 @@ static std::unique_ptr<CBlockStreamReader<CFileReader>>  GetBlockStream(CBlockIn
     return stream;
 }
 
+void evicttransaction(const Config& config,
+                       const JSONRPCRequest& request,
+                       HTTPRequest* httpReq,
+                       bool processedInBatch)
+{
+    if (request.fHelp || request.params.size() < 1 ||
+        request.params.size() > 2) 
+    {
+        throw std::runtime_error(
+            "evicttransaction [\"txid\"]\n"
+
+            "\nRemoves a transaction and all of its children from the mempool.\n"
+
+            "\nArguments:\n"
+            "1. \"txid\"      (string, required) The transaction id\n"
+
+            "\nResult:\n"
+            "'txid'\n"
+
+            "\nResult (if verbose is set to true):\n"
+            "{\n"
+            "   \"evicted\": [\n"
+            "        (array of txids)\n"
+            "   ]\n"
+            "}\n"
+
+            "\nExamples:\n" +
+            HelpExampleCli("evicttransaction", "\"txid\""));
+    }
+
+    if(httpReq == nullptr)
+        return;
+
+    CHttpTextWriter httpWriter(*httpReq);
+    CJSONWriter jWriter(httpWriter, false);
+
+    TxId txid = TxId(ParseHashV(request.params[0], "parameter 1"));
+
+    CJournalChangeSetPtr changeSet {
+        mempool.getJournalBuilder().getNewChangeSet(JournalUpdateReason::REMOVE_TXN)
+    };
+
+    //Actually remove the tx and its children
+    std::vector<TxId> evicted = mempool.Evict(txid, changeSet);
+
+    if (!processedInBatch)
+    {
+        httpReq->WriteHeader("Content-Type", "application/json");
+        httpReq->StartWritingChunks(HTTP_OK);
+    }
+
+    jWriter.writeBeginObject();
+    jWriter.pushKNoComma("result");
+    jWriter.writeBeginObject();
+    // Known txns array.
+    jWriter.writeBeginArray("evicted");
+    for (TxId txid : evicted)
+    {
+        // jWriter.pushV("test");
+        jWriter.pushV(txid.ToString());
+    }
+    jWriter.writeEndArray();
+    jWriter.writeEndObject();
+    jWriter.pushKV("error", nullptr);
+    jWriter.pushKVJSONFormatted("id", request.id.write());
+    jWriter.writeEndObject();
+    jWriter.flush();
+
+    if (!processedInBatch)
+    {
+        httpReq->StopWritingChunks();
+    }
+}
+
+
 static UniValue gettxoutproof(const Config &config,
                               const JSONRPCRequest &request) {
     if (request.fHelp ||
@@ -2520,6 +2595,7 @@ static const CRPCCommand commands[] = {
     { "rawtransactions",    "sendrawtransactions",    sendrawtransactions,    false, {"inputs"} },
     { "rawtransactions",    "signrawtransaction",     signrawtransaction,     false, {"hexstring","prevtxs","privkeys","sighashtype"} }, /* uses wallet if enabled */
 
+    { "blockchain",         "evicttransaction",       evicttransaction,       true,  {"txid"} },
     { "blockchain",         "gettxoutproof",          gettxoutproof,          true,  {"txids", "blockhash"} },
     { "blockchain",         "verifytxoutproof",       verifytxoutproof,       true,  {"proof"} },
     { "blockchain",         "getmerkleproof",         getmerkleproof,         true,  {"txid", "blockhash"} },
