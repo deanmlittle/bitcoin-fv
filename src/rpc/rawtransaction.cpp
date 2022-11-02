@@ -2331,8 +2331,8 @@ static UniValue getmerkleproof2(const Config& config, const JSONRPCRequest& requ
             "\nindex is maintained (using the -txindex command line option).\n"
 
             "\nArguments:\n"
-            "1. \"blockhash\"       (string, required) Block in which tx has been mined, the current block if empty string\n"
-            "2. \"txid\"            (string, required) The transaction id\n"
+            "1. \"txid\"            (string, required) The transaction id\n"
+            "2. \"blockhash\"       (string, optional) Block in which tx has been mined, the current block if empty string\n"
             "3. \"includeFullTx\"   (bool, optional, default=false) txid if false or whole transaction in hex otherwise\n"
             "4. \"targetType\"      (string, optional, default=hash) \"hash\", \"header\" or \"merkleroot\"\n"
             "5. \"format\"          (string, optional, default=json) \"json\" or \"binary is not allowed in this release\"\n"
@@ -2350,7 +2350,7 @@ static UniValue getmerkleproof2(const Config& config, const JSONRPCRequest& requ
             "\nResult: (if format is set to \"binary\"\n"
             "\"data\"               (string) the binary form of the result instead of json\n"
             "\nExamples:\n" <<
-            HelpExampleCli("getmerkleproof2", "\"\" \"txid\"") <<
+            HelpExampleCli("getmerkleproof2", "\"txid\"") <<
             HelpExampleRpc("getmerkleproof2", "\"blockhash\", \"txid\"");
 
         return msg.str();
@@ -2364,19 +2364,19 @@ static UniValue getmerkleproof2(const Config& config, const JSONRPCRequest& requ
     size_t const n = request.params.size();
     std::ostringstream hints;
 
-    if (n < 2 || n > 5)
+    if (n < 1 || n > 5)
     {
-        hints << "Number of inputs is " << n << ",  must be between 2 and 5\n";
+        hints << "Number of inputs is " << n << ",  must be between 1 and 5\n";
         throw std::runtime_error(message_to_user(hints.str()));
     }
 
-    // retrive transactionid first (second param)
-    TxId txid = TxId(ParseHashV(request.params[1], "txid"));
+    // retrive transactionid first (first param)
+    TxId txid = TxId(ParseHashV(request.params[0], "txid"));
     std::set<TxId> setTxIds;
     setTxIds.insert(txid);
 
-    // then get the block hash (first param)
-    std::string const blockHashString = request.params[0].get_str();
+    // then get the block hash (second param)
+    std::string const blockHashString = n>1 ? request.params[1].get_str() : "";
     uint256 const requestedBlockHash = (blockHashString == "") ? uint256{}: uint256S(blockHashString);
     CBlockIndex* blockIndex = GetBlockIndex(config, requestedBlockHash, setTxIds, false);
     if (blockIndex == nullptr)
@@ -2416,9 +2416,9 @@ static UniValue getmerkleproof2(const Config& config, const JSONRPCRequest& requ
     }
 
     CMerkleTree::MerkleProof proof = merkleTree->GetMerkleProof(txid, true);
-    if (proof.merkleTreeHashes.size() == 0)
+    if (proof.merkleTreeHashes.size() == 0 && txid.GetHex() != blockIndex->GetMerkleRoot().GetHex())
     {
-        // The requested transaction was not found in the block/merkle tree
+        // The requested transaction was not found in the block/merkle tree and is not a coinbase
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Transaction(s) not found in provided block");
     }
 
